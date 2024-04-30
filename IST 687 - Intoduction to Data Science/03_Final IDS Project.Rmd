@@ -1,0 +1,184 @@
+```{r}
+#1 Loading our data as a dataframe 
+
+library(tidyverse)
+hmodata<-data.frame(read_csv("Data.csv"))
+
+```
+
+```{r}
+#2 Viewing basic attributes of our dataset
+
+str(hmodata)
+summary(hmodata)
+head(hmodata,5)
+tail(hmodata,5)
+```
+```{r}
+#3 Viewing cost statistics to decide what cost to consider value as expensive
+min(hmodata$cost)
+max(hmodata$cost)
+
+mean(hmodata$cost)
+median(hmodata$cost)
+quantile(hmodata$cost)
+```
+```{r}
+#4 Creation of a new column "cost_status" to categorize costs as 1,0 to get expensive based on our prior analysis on cost statistics
+
+hmodata$cost_status<- with(
+hmodata, ifelse(cost>4800,"TRUE","FALSE"))
+hmodata$cost_status<-as.factor(hmodata$cost_status)
+hmodata
+```
+
+
+```{r}
+#5 Checking for null values in the columns of the dataframe which have numeric data type
+
+sum(is.na(hmodata$age))
+sum(is.na(hmodata$bmi))#We see 78 null values
+sum(is.na(hmodata$children))
+sum(is.na(hmodata$hypertension))#We see 80 null values
+sum(is.na(hmodata$cost))
+```
+
+```{r}
+#6 Data cleaning using na_interpolation on the columns which have null values
+
+library(imputeTS)
+hmodata$bmi<-na_interpolation(hmodata$bmi)
+hmodata$hypertension<-na_interpolation(hmodata$hypertension)
+```
+
+```{r}
+#7 Checking again for null values
+
+sum(is.na(hmodata$age))
+sum(is.na(hmodata$bmi))#We see 0 null values
+sum(is.na(hmodata$children))
+sum(is.na(hmodata$hypertension))#We see 0 null values
+sum(is.na(hmodata$cost))
+```
+
+```{r}
+#Analyzing dataset and visualizing for understanding
+
+
+
+#8 Age vs Cost barprlot
+ggplot(hmodata,aes(x=age, y=cost)) +geom_bar(stat="identity") 
+#Costs are initially high in teen years, and then dip down, and then gradually increase with age
+
+
+```
+
+```{r}
+#9 Generating histograms to see distribution of quantitative variables
+
+hist(hmodata$bmi, breaks = 15, col = "light green", main = "Histogram of BMI", xlab = "BMI", ylab = "Frequency")
+#We see a normal distribution here
+
+hist(hmodata$cost, breaks = 20, col = "light green", main = "Histogram of Cost", xlab = "Cost", ylab = "Frequency")
+#We see a right skewed distribution, individuals with significantly higher cost have less frequency
+
+```
+
+
+```{r}
+#10 Box plots to see any outliers
+
+
+box_plot1 <- ggplot(hmodata, aes(x = smoker, y = cost)) + geom_boxplot()
+box_plot1
+#Here we see that the costs for smokers are significantly higher than those for non smokers
+```
+
+```{r}
+#11 Scatterplots
+ggplot(hmodata)+geom_point(aes(x=bmi ,y=cost ,color=smoker))+
+ylab('cost')+xlab('bmi')+ggtitle("")
+
+ggplot(hmodata)+geom_point(aes(x=bmi ,y=cost ,color=yearly_physical))+
+ylab('cost')+xlab('bmi')+ggtitle("")
+
+ggplot(hmodata)+geom_point(aes(x=bmi ,y=cost ,color=exercise))+
+ylab('cost')+xlab('bmi')+ggtitle("")
+```
+```{r}
+
+#12 Creating a duplicate dataset from the original dataset to use for model training
+
+hmodata1 <- data.frame(hmodata)
+```
+
+```{r}
+#13 Predictive model svm
+
+library(caret)
+set.seed(123)
+
+
+hmodata_model <-data.frame(hmodata1)
+#Creating duplicate dataset to utilize for prediction models
+
+trainList <- createDataPartition(y=hmodata_model$cost_status,p=.60,list=FALSE)
+#Creating data partition of our data frame to create a trainset for model training and a testset for testing predictions
+
+trainSet <- hmodata_model[trainList,]
+testSet <- hmodata_model[-trainList,]
+
+hmodata_svm1 <- train(cost_status ~ X+age+bmi+children+smoker+location+location_type+education_level+yearly_physical+exercise+married+hypertension+gender, data = trainSet ,method = "svmRadial",trControl=trainControl(method ="none"), preProcess = c("center", "scale"))
+
+predict_svm <- predict(hmodata_svm1, newdata=testSet) 
+
+confusionMatrix(predict_svm, testSet$cost_status)
+
+#SVM Model accuracy =85.85%
+#SVM Model sensitivity =96.05%
+```
+
+```{r}
+#14 Prediction model ksvm
+
+#install.packages("rio")
+library(rio)
+library(kernlab)
+library(rlang)
+library(caret)
+set.seed(123)
+
+
+hmodata_ksvm1<-ksvm(data= trainSet,cost_status~X+age+bmi+children+smoker+location+location_type+education_level+yearly_physical+exercise+married+hypertension+gender, C=5, cross=3, prob.model=TRUE) 
+
+predict_ksvm <- predict(hmodata_ksvm1, newdata=testSet) 
+
+confusionMatrix(predict_ksvm, testSet$cost_status)
+
+#KSVM Model Sensitivity 96.58%
+#KSVM Model Accuracy 87.4%
+```
+
+
+```{r}
+#15 Prediction Model training rpart tree
+
+#install.packages('e1071', dependencies = TRUE)
+#install.packages("rpart.plot")
+
+library(rpart)
+library(rpart.plot)
+
+hmodata_tree<-data.frame(hmodata1)
+
+Treeplot<-rpart(cost_status ~ X+age+bmi+children+smoker+location+location_type+education_level+yearly_physical+exercise+married+hypertension+gender, data = trainSet, control = c(maxdepth = 5, cp=0.002))
+prp(Treeplot, faclen = 0, cex = 0.8, extra = 1)
+predict_tree <- predict(Treeplot, newdata=testSet, type = "class")
+
+confusionMatrix(predict_tree, testSet$cost_status)
+
+#Tree Model Sensitivity 88.23%
+#Tree Model Accuracy 97.81%
+```
+
+
