@@ -1,0 +1,21 @@
+-- CREATE VIEW
+
+CREATE VIEW dbo.employee_overview as
+select e.FIRST_NAME, e.last_name, d.*, p.Position, p.Hourly_Wage
+from Employees e
+join department d
+on e.DEPARTMENT_ID=d.DEPARTMENT_ID
+join payroll p
+on p.PAYROLL_ID=d.PAYROLL_ID;
+
+
+-- STORED PROCEDURE
+
+CREATE PROCEDURE new_cookie_product as
+insert into Product
+(Cookie_Type, Temp, Size, Filled_or_Frosted)
+VALUES
+('Lemon Crinkle', 'Chilled', 'Mini', 'Frosted'),
+('Candy Cane', 'Chilled', 'Mini', 'Frosted')
+
+EXEC new_cookie_product
